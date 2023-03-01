@@ -1,0 +1,36 @@
+node{
+    def mavenHome = tool name: 'maven3.9.0'
+    
+   stage('SCM Clone') {
+        git 'https://github.com/MovOps/spring-boot-docker.git'
+}
+stage('MavenBuild') {
+    sh "${mavenHome}/bin/mvn clean package"
+  }
+
+  stage('Quality Report') {
+    sh "${mavenHome}/bin/mvn sonar:sonar"
+  }
+
+  stage('NexusUpload') {
+    sh "${mavenHome}/bin/mvn deploy"
+  }
+
+  stage('BuildDockerImage') {
+    sh "docker build -t modamisa/spring-boot-mongo:v2 ."
+  }
+
+  stage('DockerPush') {
+  withCredentials([string(credentialsId: 'DockerHubCredentials', variable: 'DockerHubCredentials')]) {
+   sh "docker login -u modamisa -p ${DockerHubCredentials}"
+    }
+  sh "docker push modamisa/spring-boot-mongo:v2"
+  }
+  
+  stage('RemoveDockerImages'){
+    sh 'docker rmi $(docker images -q)'
+  }
+   stage('deployToK8S'){
+     sh "kubectl apply -f springapp.yml "
+  }
+}
